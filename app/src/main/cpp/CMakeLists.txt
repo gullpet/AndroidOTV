@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.10.2)
 
 # Declares and names the project.
 
-project("otv_4_5_1")
+project("androidotv")
 
 set(CMAKE_VERBOSE_MAKEFILE on)
 # Previously: -std=gnu++11
