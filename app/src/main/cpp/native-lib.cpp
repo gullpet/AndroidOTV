@@ -11,6 +11,7 @@
 #define PATH_OUTPUT "/data/data/gullp.androidotv/files/output"
 #define PATH_MASK "/data/data/gullp.androidotv/files/mask.png"
 
+/*
 std::string fileTest(){
 
     std::ifstream file(PATH_LK_FILE);
@@ -29,12 +30,14 @@ std::string fileTest(){
     return result_str;
 }
 
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_gullp_androidotv_MainActivity_stringFromJNI(
         JNIEnv* env,
-        jobject /* this */) {
+        jobject) {
     return env->NewStringUTF(fileTest().c_str());
 }
+*/
 
 extern "C" JNIEXPORT jstring JNICALL Java_gullp_androidotv_MainActivity_runOTV( JNIEnv* env, jobject) {
 

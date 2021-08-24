@@ -18,7 +18,7 @@ include_directories(${CMAKE_SOURCE_DIR}/otv/include)
 
 # Creates and names a library, sets it as either STATIC
 # or SHARED, and provides the relative paths to its source code.
-# You can define multiple libraries, and CMake builds them for you.
+# You can define multiple libraries, and CMake builds them for ekkyou.
 # Gradle automatically packages shared libraries with your APK.
 
 add_library( # Sets the name of the library.
