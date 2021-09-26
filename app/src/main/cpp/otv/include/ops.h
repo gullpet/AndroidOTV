@@ -6,17 +6,13 @@
 /****************************
 /* Single trajecetory stat
 /****************************/
-
-float getMagnitude(cv::KeyPoint kp1, cv::KeyPoint kp2);
 float getAngle(cv::KeyPoint kp1, cv::KeyPoint kp2);
 float getVelocity(cv::KeyPoint kp1, cv::KeyPoint kp2, float realDistancePixel, float time, float fps);
 
 /****************************
 /* Sub-regions computation
 /****************************/
-
-void subRegionInit(std::vector<std::vector<float>>& input, int width, int step);
-void subRegionInit(std::vector<float>& input, int width, int step);
+void subRegionInit(std::vector<std::vector<float>>& input, std::vector<float>& input2, int width, int step);
 std::vector<float> getSubRegionAvg(std::vector<std::vector<float>>& values, std::vector<float> trajectories);
 std::vector<float> getSubRegionStd(std::vector<std::vector<float>>& values, std::vector<float> averages);
 

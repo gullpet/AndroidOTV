@@ -13,4 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+opencv_4.5.1/*
+app/src/main/cmakeLibs/*
+app/src/main/jniIncludes/*
 

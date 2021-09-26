@@ -7,7 +7,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <stdio.h>
 #include <unistd.h>
-#include <math.h>             
+#include <math.h>           
 #include <algorithm>
 #include <chrono>
 #include <array>
@@ -29,453 +29,327 @@ void applyMask(Mat &img, Mat &mask);
 
 string run(int argc, char** argv)
 {
-    	//cv::initModule_nonfree();
+	//initModule_nonfree();
+	setUseOptimized(true);
+    	
 
-        //save argv to string
-        string input_video = argv[1],
-        	   calibration_file = argv[2],
-        	   LK_file = argv[3],
-               output_path = argv[4];
+    //save argv to string
+    string info_video = argv[1],
+						calibration_file = argv[2],
+						LK_file = argv[3],
+						output_path = argv[4];
+		
+	if(!exists(output_path)){
+		mkdir(output_path, true);}
 
-	    if(!exists(output_path)){
-	   		mkdir(output_path, true);}
+	//summary
+	stringstream summary, summary_temp;
 
-        //summary
-        stringstream summary, summary_temp;
+	summary_temp << string(1,'\n') 
+				 << " *** River Flow Velocity Estimation ***"
+				 << string(2,'\n');
 
-        summary_temp << string(2,'\n') 
-                     << " *** River Flow Velocity Estimation ***"
-                     << string(3,'\n');
+	//hardware info
+	summary_temp << " * HARDWARE INFO" << string(2,'\n') 
+				 << " - " << exec("lscpu | grep 'Architecture'")
+				 << " - " << exec("lscpu | grep 'Model name'") 
+				 << " - " << exec("lscpu | grep 'CPU max MHz'")
+				 << " - " << exec("lscpu | grep 'CPU min MHz'")
+				 << " - " << exec("lscpu | grep 'Thread(s) per core'")
+				 << " - " << exec("cat /proc/meminfo | grep 'MemTotal'")
+				 << string(2,'\n');
 
-        //hardware info
-        summary_temp << " * HARDWARE INFO" << string(2,'\n') 
-                     << " - " << exec("lscpu | grep 'Architecture'")
-                     << " - " << exec("lscpu | grep 'Model name'") 
-                     << " - " << exec("lscpu | grep 'CPU max MHz'")
-                     << " - " << exec("lscpu | grep 'CPU min MHz'")
-                     << " - " << exec("lscpu | grep 'Thread(s) per core'")
-                     << " - " << exec("cat /proc/meminfo | grep 'MemTotal'")
-                     << string(2,'\n');
-
-        //open the video file
-        VideoCapture capture(input_video);
-
-        summary_temp << " * INFO VIDEO" << string(2,'\n');
-
-        //check initialization
-        if(!capture.isOpened()) 
-        {
-			cout <<" *** Error: could not initialize capturing ***"
-			     << endl;
-            return  input_video;
-        }
-        else
-        {
-			summary_temp << " - File name: "
-			             << input_video
-			             << endl;
-        }
-
-
-        //frames extraction
-        int total_frames = int(capture.get(CAP_PROP_FRAME_COUNT));
-
-        //frames per second
-        double fps = capture.get(CAP_PROP_FPS);
-
-        //parameters from file
-        float pixel_to_real, partial_min_angle, partial_max_angle, 
-              final_min_angle, final_max_angle, final_min_distance, 
-              max_features, region_step, resolution;
-
-        int radius, maxLevel, maxCount, flags;
-        double minEigThreshold, epsilon;
-
-		readLKParameters(LK_file, radius, maxLevel, maxCount, epsilon, flags, minEigThreshold);
-
-        Size winSize(2*radius + 1, 2*radius + 1);
-		TermCriteria termcrit(TermCriteria::COUNT|TermCriteria::EPS, maxCount, epsilon);
-
-        string feature_detector;
-
-        readCalibration(calibration_file, pixel_to_real, partial_min_angle, partial_max_angle, 
-        	                final_min_angle, final_max_angle, final_min_distance, max_features, 
-        	                resolution, region_step, feature_detector);
-
-        //image resolution
-        int height = lround(capture.get(CAP_PROP_FRAME_HEIGHT) * resolution),
-            width = lround(capture.get(CAP_PROP_FRAME_WIDTH) * resolution);
-
-        //region step
-        int step = (int)(region_step * resolution);
-
-
-		summary_temp  << " - Total frames: "            << total_frames       << endl
-			          << " - Frame Per Second (FPS): "  << fps                << endl
-		              << " - Duration: "                << total_frames/fps   << " s" << endl
-		              << " - Resolution: "              << width              << "x" << height << endl 
-		              << string(2,'\n');
-
-		summary << summary_temp.str();
-		//cout << summary_temp.str();
-		LOGD("%s", summary_temp.str().c_str());
-		summary_temp.str(string());
-
-        //parameters
-        Mat current_frame, previous_frame;
-
-        //index current frame
-        int frame_idx = 0;
-
-        //keypoints
-        vector<KeyPoint> keypoints_current, keypoints_predicted, keypoints;  
-        vector<KeyPoint> keypoints_start, keypoints_final; 
-        vector<int> time;
-
-        //keypoint's storage
-        vector<vector<KeyPoint>> keypoints_mem_current, keypoints_mem_predicted;
-        vector<vector<bool>> valid; 
-        vector<vector<int>> path;
-
-        //magnitude/angle's storage
-        vector<vector<float>> velocity_mem;
-
-        //velocity result
-        vector<vector<float>> velocity, angle, distance;
-
-        //sub-regions
-        vector<vector<float>> subregions_velocity;
-        vector<float> subregions_trajectories;
-        subRegionInit(subregions_velocity, width, step);
-        subRegionInit(subregions_trajectories, width, step);
-
-        //initialization
-        for( size_t i = 0; i < total_frames; i++)
-        {
-        	vector<bool> valid_at_idx;
-        	vector<float> velocity_at_idx;
-        	vector<float> vel, ang, dist;
-        	vector<int> path_at_idx;
-
-			valid.push_back(valid_at_idx);
-			velocity_mem.push_back(velocity_at_idx);
-			velocity.push_back(vel);
-			angle.push_back(ang);
-			distance.push_back(dist);
-			path.push_back(path_at_idx);
-        }
-
-        //mask 
-        Mat mask = (argc == 6) ? imread(argv[5], IMREAD_UNCHANGED) : Mat();
-        string detected_mask = " - Mask: NOT DETECTED";
-
-        if(mask.empty())
-        {
-        	mask = Mat(height, width, CV_8U);
-        	mask.setTo(Scalar(1)); 
-        }
-        else
-        {
-        	string mask_path = argv[5];
-	        mask/= 255;   
-	        detected_mask = " - Mask: " + mask_path;    	
-        }
-       
-        if (capture.set(CAP_PROP_POS_FRAMES, 0) == false)
-        {
-			//cout << "The video could not be rewinded" << endl;
-			return "The video could not be rewinded";
-			exit(1);
-        }
-
-        string resolution_s;
-
-        if(resolution == 1) resolution_s = "Full Resolution";
-        else if(resolution == 0.5) resolution_s = "Half Resolution";
-        else resolution_s = "Quarter Resolution";
-
-        summary_temp << " * FILTERING SETTINGS" << string(2,'\n')
-        	         << " - Partial filtering (min/max angle): "          << partial_min_angle    << "° to "   << partial_max_angle << "°" << endl
-        	         << " - Final filtering (min/max angle): "            << final_min_angle      << "° to "   << final_max_angle   << "°" << endl
-        	         << " - Final filtering (min covered distance): "     << final_min_distance   << " pixels" << endl
-        	         << string(2,'\n');
-
-        summary_temp << " * STARTING COMPUTATION"                 << string(2,'\n')
-        	         << " - Feature Detector: "                   << feature_detector     << endl
-        	         << " - Tracker: Lucas-Kanade's Optical Flow" << endl 
-        	         << " - Searching Window Size: "              << "(" << 2 *radius + 1 << "," << 2 *radius + 1 << ")" << endl
-        	         << " - Maximal Pyramid Level Number: "       << maxLevel             << endl
-        	         << " - Max Features To Track: "              << max_features         << endl
-        	         << " - Resolution selected: "                << resolution_s 
-        	         << " (" << width << "x" << height << ")" << endl
-        	         << detected_mask << endl
-        	         << string(2,'\n');
-
-		summary << summary_temp.str();
-		//cout << summary_temp.str();
-		summary_temp.str(string());
-
-        //progress bar
-        double progress = 0.0;
-        int frames_processed = 0;
-
-        //computing time
-        std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-
-        /* TODO: find a substitute for the set method
-        //detector
-        Ptr<FeatureDetector> detector = cv::DescriptorMatcher::create(feature_detector);
-
-        if(feature_detector == "ORB" || feature_detector == "SIFT")
-        {
-            detector->set("nFeatures", current_frame.rows * current_frame.cols);
-        }
-        else if(feature_detector == "GFTT")
-        {
-            detector->set("nfeatures", current_frame.rows * current_frame.cols);
-        }
-        */
-
-        LOGD("Reached FeatureDetector instantiation line %d. total_frames=%d", __LINE__, progress, total_frames);
-        Ptr<FeatureDetector> detector = FastFeatureDetector::create();
-
-
-        //while(progress < 1.0)
-        while(frames_processed < total_frames)
-        {
-            int barWidth = 62;
-            //cout << " [";
-
-            int pos = barWidth * progress;
-            /*
-            for (int i = 0; i < barWidth; i++)   
-            {
-				if (i < pos) cout << "=";
-				else if (i == pos) cout << ">";
-				else cout << " ";
-            }
-			*/
-            //cout << "] (" << frame_idx << "/" << total_frames << ")\r";
-            //cout.flush();
+	//parameters from file
+	float pixel_to_real, partial_min_angle, partial_max_angle, final_min_angle, final_max_angle, 		final_min_distance,max_features, region_step,resolution;
+	int radius, maxLevel, maxCount, flags, height, width, total_frames,jump;
+	double minEigThreshold, epsilon, fps;
+	string feature_detector,directory_frame;
+	
+	//read Lucas-Kanede Parameter
+	readLKParameters(LK_file, radius, maxLevel, maxCount, epsilon, flags, minEigThreshold);
+	Size winSize(2*radius + 1, 2*radius + 1);
+	TermCriteria termcrit(TermCriteria::COUNT|TermCriteria::EPS, maxCount, epsilon);
+		
+	//read Calibration Parameter
+	readCalibration(calibration_file, pixel_to_real, partial_min_angle, partial_max_angle, 
+					final_min_angle, final_max_angle, final_min_distance, max_features, 
+					resolution, region_step, feature_detector);
+		
+	//read InfoVideo 
+	readInfoVideo(info_video, fps, height, width, total_frames,directory_frame,jump);
+	fps/=jump;
+	total_frames=(int)total_frames/jump;
         
-            capture >> current_frame;
-            LOGD("Captured a frame...");
-            if(current_frame.empty())
-                break;
+	//region step
+	int step = (int)(region_step * resolution);
 
-            if(resolution != 1.0)
-            {
-	            resize(current_frame,current_frame,Size(current_frame.cols * resolution, current_frame.rows * resolution));
-	            resize(mask,mask,Size(current_frame.cols, current_frame.rows));
-            }
+	summary_temp  << " * INFO VIDEO * " << endl
+				  << " - Total frames: "            << total_frames       << endl
+   	              << " - Frame Per Second (FPS): "  << fps                << endl
+	              << " - Duration: "                << total_frames/fps   << " s" << endl
+	              << string(2,'\n');
 
-            applyMask(current_frame, mask);
+	summary << summary_temp.str();
+	//cout << summary_temp.str();
+	LOGD("%s", summary_temp.str().c_str());
+	summary_temp.str(string());
+ 
+	//parameters
+	Mat current_frame,previous_frame;
 
-            //progress bar update
-            progress += (1.0/(float)total_frames);
-            frames_processed++;
-			LOGD("frames_processed=%d", frames_processed);
-			//detection
-  			detector->detect(current_frame, keypoints);
+	/* OLD OpenCV 2 implementation
+	//detector	
+	Ptr<FeatureDetector> detector = FeatureDetector::create(feature_detector);
+	if(feature_detector == "ORB" || feature_detector == "SIFT")
+		detector->set("nFeatures", height * width);
+	else if(feature_detector == "GFTT")
+		detector->set("nfeatures", height * width);     
+	*/
 
-			if(previous_frame.empty())
+	//LOGD("Reached FeatureDetector instantiation line %d. total_frames=%d", __LINE__, total_frames);
+	Ptr<FeatureDetector> detector = FastFeatureDetector::create();
+	
+	//keypoints
+	vector<KeyPoint> keypoints_current, keypoints_predicted, keypoints;  
+	vector<KeyPoint> keypoints_start; 
+	vector<int> time;
+  
+	//vector for Lucas-Kanede
+	vector<uchar> status;
+	vector<float> err;
+	vector<Point2f> pt1, pt2;
+
+	//velocity structure & structure for initialization 
+	vector<vector<float>> velocity;
+	vector<float> vel;
+
+	//sub-regions
+	vector<vector<float>> subregions_velocity;
+	vector<float> subregions_trajectories;
+	subRegionInit(subregions_velocity,subregions_trajectories, width, step);  
+	
+	//mask
+	Mat mask = (argc == 6) ? imread(argv[5], IMREAD_UNCHANGED) : Mat();
+	string detected_mask = " - Mask: NOT DETECTED";
+	if(mask.empty())
+	{
+		mask = Mat(height, width, CV_8U);
+		mask.setTo(Scalar(1)); 
+	}
+	else
+	{
+		string mask_path = argv[5];
+		mask/= 255;   
+		detected_mask = " - Mask: " + mask_path;    	
+	}
+
+	string resolution_s;
+	if(resolution == 1) 
+		resolution_s = "Full Resolution";
+	else if(resolution == 0.5) 
+		resolution_s = "Half Resolution";
+	else 
+        	resolution_s = "Quarter Resolution";
+		
+	if(resolution != 1.0)
+	{
+		resize(mask,mask,Size(width, height));
+	}
+
+
+	summary_temp << " * FILTERING SETTINGS" << string(2,'\n')
+				 << " - Partial filtering (min/max angle): "      << partial_min_angle  << "° to " << partial_max_angle << "°" << endl
+				 << " - Final filtering (min/max angle): "        << final_min_angle    << "° to " << final_max_angle   << "°" << endl
+				 << " - Final filtering (min covered distance): " << final_min_distance << " pixels" << endl
+				 << string(2,'\n');
+
+	summary_temp << " * STARTING COMPUTATION"                 << string(2,'\n')
+				 << " - Feature Detector: "                   << feature_detector     << endl
+				 << " - Tracker: Lucas-Kanade's Optical Flow" << endl 
+				 << " - Searching Window Size: "              << "(" << 2 *radius + 1 << "," << 2 *radius + 1 << ")" << endl
+				 << " - Maximal Pyramid Level Number: "       << maxLevel             << endl
+				 << " - Max Features To Track: "              << max_features         << endl
+				 << " - Resolution selected: "                << resolution_s  << " (" << width << "x" << height << ")" << endl
+				 << detected_mask << endl
+				 << string(2,'\n');
+
+	summary << summary_temp.str();
+	//cout << summary_temp.str();
+	LOGD("%s", summary_temp.str().c_str());
+	summary_temp.str(string());
+
+		
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();  
+
+	//cout << "\n - Execution Time -\n";
+	LOGD("\n - Execution Time -\n");
+	for(int idx=0;idx<total_frames;idx++)
+        {
+		//cout << "[" << idx << "/" << total_frames << "]\r";
+		//cout.flush();
+		LOGD("[%d/%d]\n", idx, total_frames);
+
+		ostringstream os;
+		os << directory_frame << "/img" << (idx*jump+1) << ".jpeg";
+		string img = os.str();
+		
+		current_frame=imread(img);
+		// Utilizzo l'elaborazione in scala di grigi
+		//cvtColor(current_frame, current_frame,COLOR_BGR2GRAY);
+
+		//LOGD("Image: %d versus Mask: %d", current_frame.channels(), mask.channels());
+
+		//applyMask(current_frame, mask);
+		
+		detector->detect(current_frame,keypoints);
+			
+		int index = max_features - keypoints_current.size();
+		index = (index < 0) ? (-index) : index;
+		int size_kp = (keypoints.size()<index) ? 0 :(keypoints.size() - index);					
+					
+			
+		for(size_t i=keypoints.size()-1; i>size_kp; i-- )
+		{
+			keypoints_current.push_back(keypoints[i]);
+			keypoints_start.push_back(keypoints[i]);
+			time.push_back(idx);
+
+		}
+
+		//initialization of vector<vector<float>> velocity		
+		velocity.push_back(vel);
+		
+		if(idx!=0) 
+		{
+			KeyPoint::convert(keypoints_current, pt1);
+			//Lucas-Kanade optical flow
+			calcOpticalFlowPyrLK(previous_frame, current_frame, pt1, pt2, status, err, winSize, maxLevel, termcrit, OPTFLOW_LK_GET_MIN_EIGENVALS, minEigThreshold);
+
+			keypoints_predicted.clear();
+			for(size_t i = 0; i < pt2.size(); i++ ) 
 			{
-				for(size_t i = 0; i < keypoints.size(); i++ )
-				{
-					if(keypoints_current.size() < max_features)
-					{
-						keypoints_current.push_back(keypoints[i]);
-						keypoints_start.push_back(keypoints[i]);
-						time.push_back(frame_idx);
-						valid[frame_idx].push_back(false);
-						velocity_mem[frame_idx].push_back(0);
-						path[frame_idx].push_back(i);
-					}
-				}
-			}
-			else
-			{   
-				for(size_t i = keypoints.size() - 1; i >0; i-- )
-				{
-					if(keypoints_current.size() < max_features)
-					{
-						keypoints_current.push_back(keypoints[i]);
-					    keypoints_start.push_back(keypoints[i]);
-						time.push_back(frame_idx);
-						valid[frame_idx].push_back(false);
-						velocity_mem[frame_idx].push_back(0);		
-					}
-				}	
+				keypoints_predicted.push_back(KeyPoint(pt2[i],1.f));
 			}
 
-			if(!previous_frame.empty()) 
-			{
-				vector<uchar> status;
-                vector<float> err;
+			size_t i, k;
+			for(i = k = 0; i < keypoints_current.size(); i++ )
+			{ 
+				if(!status[i] || !partialFiltering(keypoints_current[i], keypoints_predicted[i], partial_min_angle, partial_max_angle, maxLevel * (2*radius +1)/resolution))
+				{	 
+					if(finalFiltering(keypoints_start[i], keypoints_current[i], final_min_distance, final_min_angle, final_max_angle))
+					{
+						float velocity_i = getVelocity(keypoints_start[i], keypoints_current[i], pixel_to_real / resolution, (idx - time[i]), fps);
+						//sub-regions computation
+						int module_start = (int) keypoints_start[i].pt.x / step,
+						    module_current = (int) keypoints_current[i].pt.x / step;
 
-                vector<Point2f> pt1, pt2;
-				KeyPoint::convert(keypoints_current, pt1);
-
-				//Lucas-Kanade optical flow
-                calcOpticalFlowPyrLK(previous_frame, current_frame, pt1, pt2, status, err, winSize, maxLevel, termcrit, OPTFLOW_LK_GET_MIN_EIGENVALS, minEigThreshold);
-
-                keypoints_predicted.clear();
-				for( size_t i = 0; i < pt2.size(); i++ ) 
-				{
-				  keypoints_predicted.push_back(KeyPoint(pt2[i], 1.f));
-				}
-
-				size_t i, k;
-
-                for(i = k = 0; i < keypoints_current.size(); i++ )
-                { 
-					if(!status[i] || 
-						!partialFiltering(keypoints_current[i], keypoints_predicted[i], partial_min_angle, partial_max_angle, maxLevel * (2*radius +1)/resolution))
-					{	      
-						if(finalFiltering(keypoints_start[i], keypoints_current[i], final_min_distance, final_min_angle, final_max_angle))
+						if(module_start == module_current)
 						{
-							float velocity_i = getVelocity(keypoints_start[i], keypoints_current[i], pixel_to_real / resolution, frame_idx - time[i], fps);
-							float angle_i = getAngle(keypoints_start[i], keypoints_current[i]);
-							
-							//sub-regions computation
-							int module_start = (int) keypoints_start[i].pt.x / step,
-							    module_current = (int) keypoints_current[i].pt.x / step;
-
-							if(module_start == module_current)
-							{
-								subregions_velocity[module_start].push_back(velocity_i);
-								subregions_trajectories[module_start]++;
-							}
-
-							//update storage
-							int pos = i;
-							for(int j = frame_idx - 1; j >= time[i]; j--)
-							{
-								valid[j][pos] = true;
-								velocity_mem[j][pos] = velocity_i;
-								pos = path[j][pos];
-							}
-
-							velocity[frame_idx].push_back(velocity_i);
-							angle[frame_idx].push_back(angle_i);
-							distance[frame_idx].push_back(velocity_i * (frame_idx - time[i])/fps);
+							subregions_velocity[module_start].push_back(velocity_i);
+							subregions_trajectories[module_start]++;
 						}
 
-						continue;
+						velocity[idx].push_back(velocity_i);
 					}
 
-					//update
-                    keypoints_current[k] = keypoints_current[i];
-                    keypoints_start[k] = keypoints_start[i];
-                    keypoints_predicted[k] = keypoints_predicted[i]; 
-                    path[frame_idx].push_back(i);
-                    velocity_mem[frame_idx].push_back(0);
-                    valid[frame_idx].push_back(false);
-                    time[k] = time[i];
-                    k++;
+				continue;
 				}
 
-				stringstream ss;
-				ss << frame_idx;
-				string str = ss.str();
-
-				keypoints_current.resize(k);
-				keypoints_start.resize(k);
-				keypoints_predicted.resize(k);
-				time.resize(k);
+				//update
+				keypoints_current[k] = keypoints_current[i];
+				keypoints_start[k] = keypoints_start[i];
+				keypoints_predicted[k] = keypoints_predicted[i]; 
+				time[k] = time[i];
+				k++;
 			}
+		
+			keypoints_current.resize(k);
+			keypoints_start.resize(k);
+			keypoints_predicted.resize(k);
+			time.resize(k);
+		}
 
-			current_frame.copyTo(previous_frame);
+		current_frame.copyTo(previous_frame);
 
-			//update keypoint's storage
-			keypoints_mem_current.push_back(keypoints_current);
-			keypoints_mem_predicted.push_back(keypoints_predicted);
+		if(!keypoints_predicted.empty())
+			swap(keypoints_current, keypoints_predicted);  
+				
+	}
+        
+	//results
+	float avg, max, min, std_dev, count;
+	computeStats(velocity, avg, max, min, std_dev, count);
 
-			if(!keypoints_predicted.empty())
-				swap(keypoints_current, keypoints_predicted);  
+	std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
+	float execution_time = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()/1000000.0;
+	
+	//cout << endl;
+	summary_temp <<  string(1,'\n') << " * RESULTS * " << string(2,'\n');
+	
+	if(count != 0)
+	{
+	summary_temp << " - Execution Time: " << execution_time << " s" << endl
+			 << " - Computational Frame Rate: " << total_frames/execution_time << " f/s" << endl
+			 << " - Max Velocity: " << max << " m/s," << endl
+			 << " - Min Velocity: " << min << " m/s," << endl
+			 << " - Avg Velocity: " << avg << " m/s," << endl
+			 << " - Std Deviation: " << std_dev << " m/s," << endl
+			 << " - Tot Filtered Trajectories: " << floatToString(count, 0) << endl
+			 << string(2,'\n');
+	}
+	else
+	{
+	summary_temp << " - Execution Time: " << execution_time << " s" << endl
+			 << " - Computational Frame Rate: " << total_frames/execution_time << " f/s" << endl
+			 << " - Max Velocity: none," << endl
+			 << " - Min Velocity: none," << endl
+			 << " - Avg Velocity: none," << endl
+			 << " - Std Deviation: none," << endl
+			 << " - Tot Filtered Trajectories: " << floatToString(count, 0) << endl
+			 << string(2,'\n');        	
+	}
 
-            frame_idx++;                                              
-        }
+	summary << summary_temp.str();
+	//cout << summary_temp.str();
+	LOGD("Finished, %s", summary.str().c_str());
+	summary_temp.str(string());
 
-        //results
-    	float avg, max, min, std_dev, count;
-		computeStats(velocity, avg, max, min, std_dev, count);
+	LOGD("Skipping statistics file output");
+	//print results into CSV file
+	//writeStats(output_path,(int)count, avg,max,min,std_dev, execution_time);
+	//cout << " - Statistics saved in: " + output_path << string(2,'\n');
 
-		std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
-		float execution_time = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()/1000000.0;
 
-		//cout << endl;
-        summary_temp <<  string(1,'\n') 
-                     << " * RESULTS" 
-                     << string(2,'\n');
+	LOGD("Skipping subregions file output");
+	//subregions
+	/*
+	vector<float> averages = getSubRegionAvg(subregions_velocity, subregions_trajectories);
+	vector<float> std = getSubRegionStd(subregions_velocity, averages);
+	writeSubRegionStats(averages, subregions_trajectories, std, width, step, output_path);
+	*/
 
-        if(count != 0)
-        {
-			summary_temp << " - Execution Time: " << execution_time << " s" << endl
-			             << " - Computational Frame Rate: " << total_frames/execution_time << " f/s" << endl
-			             << " - Max Velocity: " << max << " m/s," << endl
-			             << " - Min Velocity: " << min << " m/s," << endl
-			             << " - Avg Velocity: " << avg << " m/s," << endl
-			             << " - Std Deviation: " << std_dev << " m/s," << endl
-			             << " - Tot Filtered Trajectories: " << floatToString(count, 1) 
-			             << string(2,'\n');
-        }
-        else
-        {
-			summary_temp << " - Execution Time: " << execution_time << " s" << endl
-			             << " - Computational Frame Rate: " << total_frames/execution_time << " f/s" << endl
-			             << " - Max Velocity: none," << endl
-			             << " - Min Velocity: none," << endl
-			             << " - Avg Velocity: none," << endl
-			             << " - Std Deviation: none," << endl
-			             << " - Tot Filtered Trajectories: " << floatToString(count, 1) 
-			             << string(2,'\n');        	
-        }
+	//cout << "\n * DONE!" << endl;
+	LOGD("\n * DONE!\n");
 
-		summary << summary_temp.str();
-		//cout << summary_temp.str();
-		summary_temp.str(string());
+	/*
+	char c_summary[1024];
+	sprintf(c_summary, "summary (compatible version):\n"
+					   " - Execution time: %f s\n - Computational frame rate: %f f/s\n - Max velocity: %f m/s\n - Min velocity: %f m/s\n"
+					   " - Avg velocity: %f m/s\n - Std deviation: %f m/s\n - Tot filtered trajectories: %s\n",
+			execution_time, total_frames/execution_time, max, min, avg, std_dev, floatToString(count, 1).c_str());
+	*/
 
-		LOGD("Reached computation end line %d", __LINE__);
-
-	    //cout << " * DRAWING RESULTS" << string(2,'\n');
-
-	    LOGD("Skipping video file output");
-	    //visualization
-		//writeVideo(capture, resolution, keypoints_mem_current, keypoints_mem_predicted, valid, velocity, angle, distance, max, min, velocity_mem, output_path);
-
-		LOGD("Skipping CSV files output");
-        //print results into CSV file
-	    //writeStats(output_path, summary.str(), velocity, angle, distance, avg, max, min, std_dev, execution_time);
-	    //cout << " - Statistics saved in: " + output_path << string(2,'\n');
-
-		//subregions
-		vector<float> averages = getSubRegionAvg(subregions_velocity, subregions_trajectories);
-		vector<float> std = getSubRegionStd(subregions_velocity, averages);
-
-		LOGD("Skipping subregion stats output");
-		//writeSubRegionStats(averages, subregions_trajectories, std, width, step, output_path);
-
-		//cout << " * DONE!" << endl;
-
-		char c_summary[1024];
-		sprintf(c_summary, "summary (compatible version):\n"
-				" - Execution time: %f s\n - Computational frame rate: %f f/s\n - Max velocity: %f m/s\n - Min velocity: %f m/s\n"
-				" - Avg velocity: %f m/s\n - Std deviation: %f m/s\n - Tot filtered trajectories: %s\n",
-				execution_time, total_frames/execution_time, max, min, avg, std_dev, floatToString(count, 1).c_str());
-
-		LOGD("Finished, %s", c_summary);
-
-		return c_summary; //summary_temp.str();
+	return summary.str();
 }
 
+/*
 int main(int argc, char** argv)
 {   
     if( argc != 5 && argc != 6)
     {
  		cout << "Usage: "
 		<< argv[0]
-		<< " [input video path]"
+		<< " [input info video path]"
 		<< " [input calibration file]"
 		<< " [input LK parameters file]"
 		<< " [output path]"
@@ -487,8 +361,10 @@ int main(int argc, char** argv)
     	run(argc, argv);
     }
 
+
     return  0;
 }
+*/
 
 void applyMask(Mat &img, Mat &mask)
 {

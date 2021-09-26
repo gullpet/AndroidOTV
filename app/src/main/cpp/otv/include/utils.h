@@ -12,7 +12,6 @@
 /****************************
 /* String utilities
 /****************************/
-
 std::string zeroPadNum(int num, int width);
 std::string join(std::string path1, std::string path2);
 std::vector<std::string> split(const char *str, char c);
@@ -21,22 +20,7 @@ std::string floatToString(float number, int precision);
 /****************************
 /* Linux - command utilities
 /****************************/
-
 bool exists(std::string filePath);
 std::string exec(const char* cmd);
 void execute(std::string command);
 void mkdir(std::string folder, bool recursive);
-
-/****************************
-/* Labels
-/****************************/
-
-std::vector<std::string> prepareLabels();
-void setLabel(cv::Mat& im, const std::string label, const cv::Point &point);
-void putLabels(std::vector<std::string> labels, cv::Mat &frame);
-
-/****************************
-/* Video utils
-/****************************/
-
-cv::Mat fillBackground(cv::Mat &frame, cv::Mat &trajectories, cv::Mat &velocity);

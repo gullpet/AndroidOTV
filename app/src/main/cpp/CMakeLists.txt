@@ -36,9 +36,53 @@ add_library( # Sets the name of the library.
              otv/src/utils.cpp
              otv/src/writer.cpp )
 
-add_library( lib_opencv SHARED IMPORTED )
-set_target_properties( lib_opencv PROPERTIES IMPORTED_LOCATION
-        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libopencv_java4.so)
+add_library( libopencv_core SHARED IMPORTED )
+set_target_properties( libopencv_core PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libopencv_core.so)
+
+add_library( libopencv_highgui SHARED IMPORTED )
+set_target_properties( libopencv_highgui PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libopencv_highgui.so)
+
+add_library( libopencv_imgproc SHARED IMPORTED )
+set_target_properties( libopencv_imgproc PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libopencv_imgproc.so)
+
+add_library( libopencv_videoio SHARED IMPORTED )
+set_target_properties( libopencv_videoio PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libopencv_videoio.so)
+
+add_library( libopencv_imgcodecs SHARED IMPORTED )
+set_target_properties( libopencv_imgcodecs PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libopencv_imgcodecs.so)
+
+add_library( libopencv_features2d SHARED IMPORTED )
+set_target_properties( libopencv_features2d PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libopencv_features2d.so)
+
+add_library( libopencv_video SHARED IMPORTED )
+set_target_properties( libopencv_video PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libopencv_video.so)
+
+add_library( libopencv_flann SHARED IMPORTED )
+set_target_properties( libopencv_flann PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libopencv_flann.so)
+
+add_library( libopencv_dnn SHARED IMPORTED )
+set_target_properties( libopencv_dnn PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libopencv_dnn.so)
+
+add_library( libopencv_calib3d SHARED IMPORTED )
+set_target_properties( libopencv_calib3d PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libopencv_calib3d.so)
+
+#add_library( libomp SHARED IMPORTED )
+#set_target_properties( libomp PROPERTIES IMPORTED_LOCATION
+#        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libomp.so)
+
+add_library( libtbb SHARED IMPORTED )
+set_target_properties( libtbb PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../cmakeLibs/${ANDROID_ABI}/libtbb.so)
 
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by
@@ -64,4 +108,15 @@ target_link_libraries( # Specifies the target library.
                        # included in the NDK.
                        ${log-lib}
 
-                       lib_opencv )
+                       libopencv_core
+                       libopencv_highgui
+                       libopencv_imgproc
+                       libopencv_videoio
+                       libopencv_imgcodecs
+                       libopencv_features2d
+                       libopencv_video
+                       libopencv_flann
+                       libopencv_dnn
+                       libopencv_calib3d
+                       #libomp )
+                       libtbb )

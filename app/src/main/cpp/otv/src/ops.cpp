@@ -1,4 +1,4 @@
-#include "ops.h"
+ #include "ops.h"
 
 using namespace cv;
 using namespace std;
@@ -6,22 +6,15 @@ using namespace std;
 /****************************
 /* Single trajecetory stat
 /****************************/
-
-float getMagnitude(KeyPoint kp1, KeyPoint kp2)
-{
-	return sqrt(pow(kp2.pt.y - kp1.pt.y, 2) +
-		        pow(kp2.pt.x - kp1.pt.x, 2));
-}
-
 float getAngle(KeyPoint kp1, KeyPoint kp2)
 {
-	return atan2(kp2.pt.y - kp1.pt.y, kp2.pt.x - kp1.pt.x) * 
-	       180 / PI;
+	return atan2(kp2.pt.y - kp1.pt.y, kp2.pt.x - kp1.pt.x) *180 / PI;
 }
 
 float getVelocity(KeyPoint kp1, KeyPoint kp2, float realDistancePixel, float time, float fps)
-{
-	return getMagnitude(kp1, kp2) * realDistancePixel * fps / time; 
+{	
+	float magnitude= sqrt(((kp2.pt.y - kp1.pt.y)*(kp2.pt.y - kp1.pt.y)) + ((kp2.pt.x - kp1.pt.x)*(kp2.pt.x - kp1.pt.x)));
+	return magnitude * realDistancePixel * fps / time; 
 }
 
 
@@ -29,42 +22,35 @@ float getVelocity(KeyPoint kp1, KeyPoint kp2, float realDistancePixel, float tim
 /* Sub-regions computation
 /****************************/
 
-void subRegionInit(vector<vector<float>>& input, int width, int step)
+void subRegionInit(vector<vector<float>>& input, vector<float>& input2, int width, int step)
 {
 	int n_regions = ceil((float)width / step);
-
+	vector<float> values; 
+	
 	for(int i=0; i < n_regions; i++)
 	{
-		vector<float> values; 
 		input.push_back(values);
-	}
-}
-
-void subRegionInit(vector<float>& input, int width, int step)
-{
-	int n_regions = ceil((float)width / step);
-
-	for(int i=0; i < n_regions; i++)
-	{
-		input.push_back(0);
+		input2.push_back(0);
 	}
 }
 
 vector<float> getSubRegionAvg(vector<vector<float>>& values, vector<float> trajectories)
 {
 	vector<float> averages;
-
+	
 	for(int i = 0; i < values.size(); i++)
 	{
 		averages.push_back(0);
 		trajectories.push_back(0);
 	}
-
+	
 	for(int i = 0; i < averages.size(); i++)
 	{
 		float sum = 0; 
+		
 		for(int j = 0; j < values[i].size(); j++)
-			sum+=values[i][j];
+			sum += values[i][j];
+	
 
 		if(trajectories[i]!=0)
 			averages[i] += sum/trajectories[i];
@@ -78,14 +64,14 @@ vector<float> getSubRegionAvg(vector<vector<float>>& values, vector<float> traje
 vector<float> getSubRegionStd(vector<vector<float>>& values, vector<float> averages)
 {
 	vector<float> std;
-
-	for(int i = 0; i < values.size(); i++)
+	
+	for(size_t i = 0; i < values.size(); i++)
 	{
 		float std_dev = 0; 
-
+		
 		for(int j = 0; j < values[i].size(); j++)
 		{
-			std_dev+= pow(values[i][j] - averages[i], 2);
+			std_dev+= (values[i][j] - averages[i])*(values[i][j] - averages[i]);
 		}
 
 		if(values[i].size() > 0)
@@ -106,14 +92,17 @@ void computeStats(vector<vector<float>> velocity, float &avg, float &max, float 
 	avg=0, max=0, min=FLT_MAX, std_dev=0, count = 0;
 
 	//average, maximum, minimum 
-	for(int i = 0; i < velocity.size(); i++)
+	for(vector<float> vel_vec : velocity)
 	{
-		for(int j = 0; j < velocity[i].size(); j++)
+		for(float vel : vel_vec)
 		{
-			avg+= velocity[i][j];
-			max = (velocity[i][j] > max) ? velocity[i][j] : max;
-			min = (velocity[i][j] < min) ? velocity[i][j] : min;	
+			if(vel>0)
+			{
+			avg += vel;
+			max = (vel > max) ? vel : max;
+			min = (vel < min) ? vel : min;	
 			count ++;		
+			}
 		}
 	}
 
@@ -121,11 +110,11 @@ void computeStats(vector<vector<float>> velocity, float &avg, float &max, float 
 	   avg/= count;
 
 	//std deviation
-	for(int i = 0; i < velocity.size(); i++)
+	for(vector<float> vel_vec : velocity)
 	{
-		for(int j = 0; j < velocity[i].size(); j++)
+		for(float vel : vel_vec)
 		{
-			std_dev += pow(velocity[i][j] - avg, 2);
+			std_dev += (vel - avg)*(vel - avg);
 		}
 	}
 
@@ -147,7 +136,7 @@ void onlineStats(vector<float>velocity, float &avg, float &max, float &min, floa
 	//std deviation
 	for(int i = 0; i < velocity.size(); i++)
 	{
-		std_dev += pow(velocity[i] - avg/count, 2);
+		std_dev += (velocity[i] - avg/count)*(velocity[i] - avg/count);
 	}
 }
 

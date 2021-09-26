@@ -79,3 +79,30 @@ void readLKParameters(string file_name, int& radius,
 
     file.close();	
 }
+
+
+void readInfoVideo(string file_name, double& fps, int& height, int& width, 
+		           int& total_frames,string& directory_frame,int& jump) 
+{
+	ifstream file(file_name);
+	string str;
+	while(getline(file,str)) 
+	{
+		vector<string> splitted = split(str.c_str(),' ');
+		
+		if(splitted[0]=="FPS") 
+		      fps=stod(splitted[1]);
+		else if(splitted[0]=="Width")
+			width=stoi(splitted[1]);
+		else if(splitted[0]=="Height")
+		        height=stoi(splitted[1]);
+		else if(splitted[0]=="FileCount")
+			total_frames=stoi(splitted[1]);
+		else if(splitted[0]=="DirectoryFrame")
+			directory_frame=splitted[1];
+		else if(splitted[0]=="Jump")
+			jump=stoi(splitted[1]);
+	}
+
+
+}

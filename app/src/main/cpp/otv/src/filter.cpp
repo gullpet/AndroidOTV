@@ -7,7 +7,7 @@ using namespace std;
 
 bool partialFiltering(KeyPoint kp1, KeyPoint kp2, float minAngle, float maxAngle, float maxDistance)
 {
-	float magnitude = getMagnitude(kp1, kp2);//only to limit the research window
+	float magnitude = sqrt(((kp2.pt.y - kp1.pt.y)*(kp2.pt.y - kp1.pt.y)) + ((kp2.pt.x - kp1.pt.x)*(kp2.pt.x - kp1.pt.x))); //only to limit the research window
 	if(magnitude > maxDistance)
 		return false;
 
@@ -21,7 +21,7 @@ bool partialFiltering(KeyPoint kp1, KeyPoint kp2, float minAngle, float maxAngle
 bool finalFiltering(KeyPoint kp1, KeyPoint kp2, float minMagnitude, float minAngle, float maxAngle)
 {
 	//magnitude filtering
-	float magnitude = getMagnitude(kp1, kp2);
+	float magnitude = sqrt(((kp2.pt.y - kp1.pt.y)*(kp2.pt.y - kp1.pt.y)) + ((kp2.pt.x - kp1.pt.x)*(kp2.pt.x - kp1.pt.x)));
 	if(magnitude < minMagnitude)
 		return false;
 	

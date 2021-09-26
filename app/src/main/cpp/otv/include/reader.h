@@ -15,3 +15,8 @@ void readCalibration(std::string file_name, float &pixel_to_real,
 void readLKParameters(std::string file_name, int &radius, 
 	                  int &maxLevel, int &maxCount, double &epsilon, 
 	                  int &flags, double &minEigThreshold);
+	                  
+//info-video parameters
+void readInfoVideo(std::string file_name, double& fps,
+				   int& height, int& width, int& total_frames,
+				   std::string& directory_frame, int& jump);
