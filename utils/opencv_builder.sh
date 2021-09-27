@@ -2,13 +2,13 @@
 
 # Author: Guglielmo Palaferri
 
-#Usage: ./opencv-android-builder.sh [{arm64-v8a, armeabi-v7a, ...}]
+#Usage: ./opencv_builder.sh [config-name]
 
-# This script builds OpenCV from source for any of the ABIs provided via args.
+# This script builds OpenCV from source.
 # Has to be run from inside the root directory of the source code 
 # Example:  $ git clone [opencv-git-url] opencv
 #           $ cd opencv
-#           $ ./opencv-android-builder.sh [list-of-ABIs])
+#           $ ../opencv_builder.sh MULTICORE
 
 
 # Android API level to be used, specify the lowest API level with which your Android application is supposed to work
