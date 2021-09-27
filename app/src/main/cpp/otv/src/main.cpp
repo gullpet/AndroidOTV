@@ -195,7 +195,7 @@ string run(int argc, char** argv)
 		
 		current_frame=imread(img);
 		// Utilizzo l'elaborazione in scala di grigi
-		//cvtColor(current_frame, current_frame,COLOR_BGR2GRAY);
+		cvtColor(current_frame, current_frame,COLOR_BGR2GRAY);
 
 		//LOGD("Image: %d versus Mask: %d", current_frame.channels(), mask.channels());
 
